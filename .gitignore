@@ -1,3 +1,8 @@
+# Top secret files (tm)
+*.csv
+*.h5ad
+test_script.ipynb
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
