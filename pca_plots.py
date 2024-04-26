@@ -27,7 +27,7 @@ def pca_screeplot(pca_model, figsize=(5,3), title_add=''):
     plt.title(f'Scree plot {title_add}')
     plt.tight_layout()
 
-def pca_corplot(pca_model, column_names, comp = [0,1], figsize=(5,5), title_add=''):
+def pca_corplot(pca_model, column_names, comp = [0,1], figsize=(5,5), title_add='', vec_filter: list[str | bool]=None):
     """
     Shows the variables in a correlation circle.
     The projection of each variable on a PC represents its correlation with that PC.
@@ -48,6 +48,13 @@ def pca_corplot(pca_model, column_names, comp = [0,1], figsize=(5,5), title_add=
     plt.tight_layout()
 
     for i in range(pca_model.n_components_):
+        if vec_filter is not None:
+            if isinstance(vec_filter[i], str):
+                if vec_filter[i] not in column_names:
+                    continue
+            elif isinstance(vec_filter[i], bool):
+                if not vec_filter[i]:
+                    continue
         x = var_cor[comp[0],i]
         y = var_cor[comp[1],i]
         plt.arrow(0,0,x,y, color='k',
