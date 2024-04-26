@@ -16,7 +16,7 @@ def normalize_log1p(adata: ad.AnnData, layer_name: str='norm', inplace=True) -> 
     return result
 
 
-def normalize_unit(adata: ad.AnnData, layer_name: str='norm', norm_type: str='max', inplace=True) -> None | ad.AnnData:
+def normalize_unit(adata: ad.AnnData, layer_name: str='norm', norm_type: str='l2', inplace=True) -> None | ad.AnnData:
     '''https://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25'''
     result: ad.AnnData | None = None
     if not inplace:
