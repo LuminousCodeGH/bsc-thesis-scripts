@@ -1,6 +1,7 @@
 # Top secret files (tm)
 *.csv
 *.h5ad
+*.png
 test_script.ipynb
 
 # Byte-compiled / optimized / DLL files
