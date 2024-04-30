@@ -82,7 +82,7 @@ def pca_contribplot(pca_model, column_names, comp = 0, figsize=(6,5), title_add=
     plt.title(f'Contribution of variables to PC{comp+1} {title_add}')
     plt.tight_layout()
 
-def pca_biplot(X, pca_model, column_names, comp = [0,1], clusters = None, labels = None, figsize=(10,8), title_add=''):
+def pca_biplot(X, pca_model, column_names, comp = [0,1], clusters = None, labels = None, figsize=(10,8), title_add='', vec_filter: list[str | bool]=None):
     """
     Shows a scatterplot showing each observation in the 2D space defined by two PCs,
     along with the vectors corresponding to each feature.
@@ -112,6 +112,13 @@ def pca_biplot(X, pca_model, column_names, comp = [0,1], clusters = None, labels
     
     # plot vectors
     for i in range(len(xvector)):
+        if vec_filter is not None:
+            if isinstance(vec_filter[i], str):
+                if vec_filter[i] not in column_names:
+                    continue
+            elif isinstance(vec_filter[i], bool):
+                if not vec_filter[i]:
+                    continue
         x = xvector[i]*max(xs)
         y = yvector[i]*max(ys)
         plt.arrow(0, 0, x, y, color='k',
