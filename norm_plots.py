@@ -21,7 +21,7 @@ def generate_boxplot_old(adata: ad.AnnData, layer: str) -> None:
     else:
         _df = pd.DataFrame(adata.layers[layer], columns=col_labels)
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 12))
-    bplot = ax.boxplot(_df, notch=True, labels=col_labels)
+    bplot = ax.boxplot(_df.T, notch=True, labels=col_labels)
     plt.xticks(rotation=90)
     ax.set_title(f'Box Plot for {layer}')
     fig.show()
@@ -35,7 +35,8 @@ def generate_boxplot(adata: ad.AnnData, layer: str) -> None:
         _df = pd.DataFrame(adata.X, columns=col_labels)
     else:
         _df = pd.DataFrame(adata.layers[layer], columns=col_labels)
-    ax = sns.boxplot(_df, orient='v', notch=True)
+    ax = sns.boxplot(_df.T, orient='v', notch=True)
+    ax.tick_params('x', rotation=90, width=5)
     plt.xticks(rotation=90)
     ax.set_title(f'Box Plot for {layer}')
     plt.show()
@@ -94,7 +95,8 @@ def generate_normalization_summary(adata: ad.AnnData, layer: str) -> None:
     sns.set_style('whitegrid')
     density = sns.kdeplot(_df, bw_method=0.5, legend=False, ax=ax1)
     density.set_title(f'Density Plot for {layer}')
-    boxplot = sns.boxplot(_df, orient='v', notch=True, ax=ax2)
+    boxplot = sns.boxplot(_df.T, orient='v', notch=True, ax=ax2)
+    boxplot.tick_params('x', rotation=90, width=5)
     boxplot.set_title(f'Box Plot for {layer}')
     heatmap = sns.heatmap(_df,  ax=ax3)
     heatmap.set_title(f'Heatmap for {layer}')
