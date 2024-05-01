@@ -57,16 +57,27 @@ def generate_densityplot(adata: ad.AnnData, layer: str, show_legend:bool=False) 
     del(_df)
 
 
-def generate_clustermap(adata: ad.AnnData, layer: str, color_by: str='cogdx') -> None:
+def generate_clustermap(adata: ad.AnnData, layer: str, color_by:str | list[str]='cogdx') -> None:
     col_labels = adata.var_names
+    ind_labels = adata.obs_names
 
     if layer == 'X':
-        _df = pd.DataFrame(adata.X, columns=col_labels)
+        _df = pd.DataFrame(adata.X, columns=col_labels, index=ind_labels)
     else:
-        _df = pd.DataFrame(adata.layers[layer], columns=col_labels)
-    palette = dict( zip( adata.obs[color_by].unique(), _get_distinct_colors( len(adata.obs[color_by].unique()) ) ) )  # Does not work
-    row_colors = adata.obs[color_by].map(palette)
-    sns.clustermap(_df, row_colors=row_colors)
+        _df = pd.DataFrame(adata.layers[layer], columns=col_labels, index=ind_labels)
+
+    rows_colors: pd.DataFrame | list[pd.DataFrame]
+    if isinstance(color_by, str):
+        lut = dict(zip(adata.obs[color_by].unique(), _get_distinct_colors(len(adata.obs[color_by].unique()))))
+        rows_colors = adata.obs[color_by].map(lut)
+    elif isinstance(color_by, list):
+        rows_colors = []
+        for cby in color_by:
+            lut = dict(zip(adata.obs[cby].unique(), _get_distinct_colors(len(adata.obs[cby].unique()))))
+            rows_colors.append(adata.obs[cby].map(lut))
+            
+    sns.set_theme(font_scale=0.6)
+    sns.clustermap(_df, row_colors=rows_colors)
     plt.title(f'Clustermap for {layer}')
     plt.show()
     del(_df)
