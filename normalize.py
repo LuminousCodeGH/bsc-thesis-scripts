@@ -14,7 +14,8 @@ def normalize_l1(adata: ad.AnnData, layer_name: str='norm', transformation_func:
         result = adata
     adata.layers[layer_name] = adata.X.copy()
     sc.pp.normalize_total(adata, layer=layer_name, target_sum=10000)  # This is a simple L1 normalization
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
 
 
@@ -26,7 +27,8 @@ def normalize_l2(adata: ad.AnnData, layer_name: str='norm', transformation_func:
         result = adata
     adata.layers[layer_name] = adata.X.copy()
     adata.layers[layer_name] = normalize(adata.layers[layer_name], 'l2', axis=1) * 10000
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
 
 
@@ -38,7 +40,8 @@ def normalize_minmax(adata: ad.AnnData, layer_name: str='norm', transformation_f
         result = adata
     adata.layers[layer_name] = adata.X.copy()
     adata.layers[layer_name] = minmax_scale(adata.layers[layer_name], axis=1) * 10000
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
 
 
@@ -50,7 +53,8 @@ def normalize_robust(adata: ad.AnnData, layer_name: str='norm', transformation_f
         result = adata
     adata.layers[layer_name] = adata.X.copy()
     adata.layers[layer_name] = robust_scale(adata.layers[layer_name], axis=1, with_centering=False) * 10000
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
 
 
@@ -63,7 +67,8 @@ def normalize_tmm(adata: ad.AnnData, layer_name: str='norm', transformation_func
     adata.layers[layer_name] = adata.X.copy()
 
     adata.layers[layer_name] = tmm(adata.layers[layer_name].T).T  # Scaling seems to happen automatically
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
 
 def normalize_mrn(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
@@ -75,5 +80,6 @@ def normalize_mrn(adata: ad.AnnData, layer_name: str='norm', transformation_func
     adata.layers[layer_name] = adata.X.copy()
 
     adata.layers[layer_name] = mrn(adata.layers[layer_name].T).T  # Scaling seems to happen automatically
-    transformation_func(adata.layers[layer_name])
+    if transformation_func is not None:
+        transformation_func(adata.layers[layer_name])
     return result
