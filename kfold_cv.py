@@ -1,5 +1,5 @@
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, balanced_accuracy_score
 import pandas as pd
 import numpy as np
 
@@ -20,7 +20,7 @@ def kfold_cv(model_obj: object, X: pd.DataFrame, y: pd.Series, n_splits: int=5, 
 
         print('testing model... ', end='')
         pred = m.predict(X_test)
-        cv_results[split]['acc'] = accuracy_score(y_test, pred)
+        cv_results[split]['acc'] = balanced_accuracy_score(y_test, pred)
         cv_results[split]['prc'] = precision_score(y_test, pred, average='macro')
         cv_results[split]['rec'] = recall_score(y_test, pred, average='macro')
         cv_results[split]['f1'] = f1_score(y_test, pred, average='macro')
