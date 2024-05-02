@@ -13,7 +13,8 @@ def _calculate_ct_per(adata: ad.AnnData,
                       replace_nans:float=0,
                       replace_infs:float=999999,
                       averge_func: Callable[[np.ndarray], float]=np.median,
-                      inplace: bool=True) -> pd.DataFrame | None:
+                      inplace: bool=True,
+                      verbose: bool=False) -> pd.DataFrame | None:
     result = None
     if not inplace:
         adata = adata.copy()
@@ -37,18 +38,20 @@ def _calculate_ct_per(adata: ad.AnnData,
         cpm = ct_count / avg_metric
 
         if ct_count == 0 and avg_metric == 0:
-            print('Encountered NaN: ')
-            print(f'avg_metric={avg_metric:.3f}, ct_count={ct_count:.3f}', end=' => ')
-            print(f'count/avg_metric={cpm:.3f}')
+            if verbose:
+                print('Encountered NaN: ')
+                print(f'avg_metric={avg_metric:.3f}, ct_count={ct_count:.3f}', end=' => ')
+                print(f'count/avg_metric={cpm:.3f}')
+                print(f'Replacing with: {replace_nans}')
             cpm = replace_nans
-            print(f'Replacing with: {replace_nans}')
 
         elif cpm == float('inf'):
-            print('Encountered infinity: ')
-            print(f'avg_metric={avg_metric:.3f}, ct_count={ct_count:.3f}', end=' => ')
-            print(f'count/avg_metric={cpm:.3f}')
+            if verbose:
+                print('Encountered infinity: ')
+                print(f'avg_metric={avg_metric:.3f}, ct_count={ct_count:.3f}', end=' => ')
+                print(f'count/avg_metric={cpm:.3f}')
+                print(f'Replacing with: {replace_infs}')
             cpm = replace_infs
-            print(f'Replacing with: {replace_infs}')
 
         res.append(cpm)
 
@@ -67,8 +70,9 @@ def calculate_ct_per_median(adata: ad.AnnData,
                             column_name: str=None, 
                             replace_nans:float=0,
                             replace_infs:float=999999, 
-                            inplace: bool=True) -> pd.DataFrame | None:
-    _calculate_ct_per(adata, cell_type, normalize_first, layer, column_name, replace_nans, replace_infs, np.median, inplace)
+                            inplace: bool=True,
+                            verbose: bool=False) -> pd.DataFrame | None:
+    _calculate_ct_per(adata, cell_type, normalize_first, layer, column_name, replace_nans, replace_infs, np.median, inplace, verbose)
 
 
 def calculate_ct_per_mean(adata: ad.AnnData, 
@@ -78,23 +82,29 @@ def calculate_ct_per_mean(adata: ad.AnnData,
                             column_name: str=None, 
                             replace_nans:float=0,
                             replace_infs:float=999999, 
-                            inplace: bool=True) -> pd.DataFrame | None:
-    _calculate_ct_per(adata, cell_type, normalize_first, layer, column_name, replace_nans, replace_infs, np.mean, inplace)
+                            inplace: bool=True,
+                            verbose: bool=False) -> pd.DataFrame | None:
+    _calculate_ct_per(adata, cell_type, normalize_first, layer, column_name, replace_nans, replace_infs, np.mean, inplace, verbose)
 
 
 def remove_outliers(adata: ad.AnnData, 
                     obs_metric: str,
                     threshold: float,
                     gt: bool=True,
-                    inplace: bool=True) -> pd.DataFrame | None:
-    result: ad.AnnData | None = None
-    if not inplace:
-        adata = adata.copy()
-        result = adata
-    
+                    verbose: bool=False) -> ad.AnnData:
+    result: ad.AnnData
+
+    _shape_bef = adata.shape
     if gt:
-        adata = adata[~adata.obs[obs_metric] > threshold]
+        result = adata[adata.obs[obs_metric] < threshold, :]  # Features gt threshold will be False
+        if verbose:
+            print((adata.obs[obs_metric] < threshold).value_counts())
     else:
-        adata = adata[~adata.obs[obs_metric] < threshold]
+        result = adata[adata.obs[obs_metric] > threshold, :]  # Features lt threshold will be False
+        if verbose:
+            print((adata.obs[obs_metric] > threshold).value_counts())
+    _shape_aft = result.shape
+
+    assert _shape_aft != _shape_bef, f'There is no difference in shapes! ({_shape_bef} => {_shape_aft})'
 
     return result
