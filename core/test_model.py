@@ -3,8 +3,8 @@ import pandas as pd
 from collections.abc import Callable
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.base import ClassifierMixin
-from kfold_cv import kfold_cv
-from normalize import *
+from core.kfold_cv import kfold_cv
+from core.normalize import *
 from scipy.stats import ranksums
 from statsmodels.stats.multitest import fdrcorrection
 
