@@ -48,8 +48,10 @@ def kfold_cv(model_obj: object, X: pd.DataFrame, y: pd.Series, k: int=5, return_
         return cv_results
     
 
-Xt, Xv = pd.DataFrame | np.ndarray
-yt, yv = pd.Series | np.ndarray
+Xt = pd.DataFrame | np.ndarray
+Xv = pd.DataFrame | np.ndarray
+yt = pd.Series | np.ndarray
+yv = pd.Series | np.ndarray
 
 def optimize_hyperparam(X: pd.DataFrame,
                         y: pd.Series,
