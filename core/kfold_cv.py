@@ -57,8 +57,8 @@ def optimize_hyperparam(X: pd.DataFrame,
                         y: pd.Series,
                         k: int, 
                         H: list, 
-                        cv_func: Callable[[Xt, yt, Xv, yv, Any], pd.DataFrame], 
-                        random_state: int=123) -> dict[str, dict] | pd.DataFrame:
+                        cv_func: Callable[[Xt, yt, Xv, yv, Any], dict[str, float]], 
+                        random_state: int=123) -> pd.DataFrame:
     """
     Do stratified k-fold cross-validation with a dataset, to check how a model behaves as a function
     of the values in H (eg. a hyperparameter such as tree depth, or polynomial degree).
