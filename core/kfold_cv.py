@@ -94,7 +94,7 @@ def optimize_hyperparam(X: pd.DataFrame,
     return pd.DataFrame(scores)
 
 
-def plot_optimization_results(results: pd.DataFrame, h_var: str='_h', fold_var: str='fold', var_name: str='metric') -> None:
+def plot_optimization_results(results: pd.DataFrame, h_var: str='_h', fold_var: str='_fold', var_name: str='metric') -> None:
     res_melt = results.melt(id_vars=[h_var, fold_var], var_name=var_name)
     res_melt = res_melt.groupby(['_h', 'metric'], as_index=False).aggregate(stdev = ('value', 'std'), mean = ('value', 'mean'))
 
