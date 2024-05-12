@@ -109,7 +109,7 @@ def plot_optimization_scatter(results: pd.DataFrame, title: str, h_var: str='_h'
 def plot_optimization_box(results: pd.DataFrame, title: str, h_var: str='_h', fold_var: str='_fold', var_name: str='metric') -> None:
     res_melt = results.melt(id_vars=[h_var, fold_var], var_name=var_name)
 
-    plot = ggplot(res_melt, aes(h_var, 'value', color = var_name)) +\
+    plot = ggplot(res_melt, aes(h_var, 'value', fill = var_name)) +\
     geom_boxplot(notch=False) +\
     labs(x='Threshold', y='Score', title=title)
     plot.draw(True)
