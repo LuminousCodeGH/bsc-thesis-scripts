@@ -63,3 +63,19 @@ def test_model_from_scratch(adata: ad.AnnData,
     test_abundance(adata, ranksums, fdrcorrection, norm_layer=layer_name, alpha=alpha)
 
     return test_model(adata, model, y, norm_layer=layer_name, sig_filter=sig_filter)
+
+
+def optimize_normalization(X: ad.AnnData,
+                           y: pd.Series,
+                           classifier,
+                           normalizations: list[Callable[[ad.AnnData], None]] = [normalize_l1, 
+                                                                                 normalize_l2, 
+                                                                                 normalize_minmax, 
+                                                                                 normalize_robust, 
+                                                                                 normalize_tmm, 
+                                                                                 normalize_mrn], 
+                           layer_names: list[str] = ['l1', 'l2', 'minmax', 'robust', 'tmm', 'mrn']) -> pd.DataFrame:
+    results: pd.DataFrame
+    results = pd.concat([test_model_from_scratch(X, norm_func, layer, classifier, y=y.cat.codes).assign(_h=layer) 
+                             for norm_func, layer in zip(normalizations, layer_names)])
+    return results
