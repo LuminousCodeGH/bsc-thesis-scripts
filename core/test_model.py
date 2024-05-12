@@ -21,7 +21,6 @@ def test_model(adata: ad.AnnData,
         X = pd.DataFrame(adata.layers[norm_layer])
     
     cv_res = kfold_cv(model, X, y)
-    adata.uns['model_training_results'] = cv_res
 
     return pd.DataFrame(cv_res)
 
