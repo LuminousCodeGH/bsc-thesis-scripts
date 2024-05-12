@@ -10,7 +10,7 @@ def _categorize_by(adata: ad.AnnData, by: str, map: dict[int, str], col_name: st
         adata = adata.copy()
         result = adata
 
-    adata.obs[col_name] = adata.obs.apply(lambda row: map[row[by]], axis=1)
+    adata.obs[col_name] = adata.obs.apply(lambda row: map[row[by]], axis=1).astype('category')
     return result
 
 
