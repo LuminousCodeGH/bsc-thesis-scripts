@@ -6,7 +6,7 @@ from conorm import tmm, mrn
 from collections.abc import Callable
 
 
-def normalize_l1(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_l1(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True, reference: str=None) -> None | ad.AnnData:
     '''https://scanpy.readthedocs.io/en/stable/tutorials/basics/clustering.html#normalization'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -19,7 +19,7 @@ def normalize_l1(adata: ad.AnnData, layer_name: str='norm', transformation_func:
     return result
 
 
-def normalize_l2(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_l2(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True, reference: str=None) -> None | ad.AnnData:
     '''https://scanpy.readthedocs.io/en/stable/tutorials/basics/clustering.html#normalization'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -32,7 +32,7 @@ def normalize_l2(adata: ad.AnnData, layer_name: str='norm', transformation_func:
     return result
 
 
-def normalize_minmax(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_minmax(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True, reference: str=None) -> None | ad.AnnData:
     '''https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.minmax_scale.html#sklearn.preprocessing.minmax_scale'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -45,7 +45,7 @@ def normalize_minmax(adata: ad.AnnData, layer_name: str='norm', transformation_f
     return result
 
 
-def normalize_robust(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_robust(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True, reference: str=None) -> None | ad.AnnData:
     '''https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.quantile_transform.html'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -58,7 +58,7 @@ def normalize_robust(adata: ad.AnnData, layer_name: str='norm', transformation_f
     return result
 
 
-def normalize_tmm(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_tmm(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True, reference: str=None) -> None | ad.AnnData:
     '''https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7710733/ // https://pypi.org/project/conorm/'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -71,7 +71,11 @@ def normalize_tmm(adata: ad.AnnData, layer_name: str='norm', transformation_func
         transformation_func(adata.layers[layer_name])
     return result
 
-def normalize_mrn(adata: ad.AnnData, layer_name: str='norm', transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, inplace=True) -> None | ad.AnnData:
+def normalize_mrn(adata: ad.AnnData, 
+                  layer_name: str='norm', 
+                  transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, 
+                  inplace=True,
+                  reference: str=None) -> None | ad.AnnData:
     '''https://pypi.org/project/conorm/'''
     result: ad.AnnData | None = None
     if not inplace:
@@ -82,4 +86,24 @@ def normalize_mrn(adata: ad.AnnData, layer_name: str='norm', transformation_func
     adata.layers[layer_name] = mrn(adata.layers[layer_name].T).T  # Scaling seems to happen automatically
     if transformation_func is not None:
         transformation_func(adata.layers[layer_name])
+    return result
+
+def normalize_by_reference(adata: ad.AnnData,  
+                           layer_name: str='norm', 
+                           transformation_func: Callable[[np.ndarray], None]=sc.pp.log1p, 
+                           inplace=True,
+                           reference: str=None) -> None | ad.AnnData:
+    result: ad.AnnData | None = None
+    if reference is None:
+        raise ValueError('Reference cell type is unset!')
+
+    if not inplace:
+        adata = adata.copy()
+        result = adata
+    adata.layers[layer_name] = adata.X.copy()
+    for row in adata.layers[layer_name]:
+        ref_idx = adata.var_names.get_loc(reference)
+        row = row / row[ref_idx]
+    if transformation_func is not None:
+            transformation_func(adata.layers[layer_name])
     return result
