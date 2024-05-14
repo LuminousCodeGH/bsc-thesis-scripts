@@ -14,13 +14,16 @@ def test_model(adata: ad.AnnData,
                y: pd.Series, 
                norm_layer: str='norm', 
                significance_col: str='significant',
-               sig_filter: bool=False) -> pd.DataFrame:
-    if sig_filter:
-        X = pd.DataFrame(adata.layers[norm_layer][:, adata.var[significance_col] == True])
+               sig_filter: bool=False,
+               k_folds: int=10) -> pd.DataFrame:
+    if norm_layer == 'X' or norm_layer is None:
+        X = pd.DataFrame(adata.X)
     else:
         X = pd.DataFrame(adata.layers[norm_layer])
+    if sig_filter:
+        X = X.iloc(axis=1)[adata.var[significance_col] == True]
     
-    cv_res = kfold_cv(model, X, y)
+    cv_res = kfold_cv(model, X, y, k=k_folds)
 
     return pd.DataFrame(cv_res)
 
@@ -56,12 +59,13 @@ def test_model_from_scratch(adata: ad.AnnData,
                              model: ClassifierMixin=RandomForestClassifier(class_weight='balanced'), 
                              alpha: float=0.05,
                              y: pd.Series=None,
-                             sig_filter: bool=False) -> pd.DataFrame:
+                             sig_filter: bool=False,
+                             k_folds: int=10) -> pd.DataFrame:
     '''Default test is between cogdx=1 and cogdx=4/5 on a RandomForestClassifier'''
     norm_func(adata, layer_name=layer_name)
     test_abundance(adata, ranksums, fdrcorrection, norm_layer=layer_name, alpha=alpha)
 
-    return test_model(adata, model, y, norm_layer=layer_name, sig_filter=sig_filter)
+    return test_model(adata, model, y, norm_layer=layer_name, sig_filter=sig_filter, k_folds=k_folds)
 
 
 def optimize_normalization(X: ad.AnnData,
@@ -72,9 +76,11 @@ def optimize_normalization(X: ad.AnnData,
                                                                                  normalize_minmax, 
                                                                                  normalize_robust, 
                                                                                  normalize_tmm, 
-                                                                                 normalize_mrn], 
-                           layer_names: list[str] = ['l1', 'l2', 'minmax', 'robust', 'tmm', 'mrn']) -> pd.DataFrame:
+                                                                                 normalize_mrn,
+                                                                                 normalize_by_reference], 
+                           layer_names: list[str] = ['l1', 'l2', 'minmax', 'robust', 'tmm', 'mrn', 'opcs_ref'],
+                           k_folds: int=10) -> pd.DataFrame:
     results: pd.DataFrame
-    results = pd.concat([test_model_from_scratch(X, norm_func, layer, classifier, y=y.cat.codes).assign(_h=layer) 
+    results = pd.concat([test_model_from_scratch(X, norm_func, layer, classifier, y=y.cat.codes, k_folds=k_folds).assign(_h=layer) 
                              for norm_func, layer in zip(normalizations, layer_names)])
     return results
