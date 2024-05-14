@@ -66,7 +66,7 @@ def optimize_hyperparam(X: pd.DataFrame,
     :param random_state: controls the pseudo random number generation for splitting the data.
     :return: a Pandas dataframe with metric scores along values in H.
     """
-    assert len(H_mask) == len(H) or H_mask is None, 'The H_mask must have the same length as H!'
+    assert H_mask is None or len(H_mask) == len(H), 'The H_mask must have the same length as H!'
     kf = StratifiedKFold(n_splits = k, shuffle = True, random_state = random_state)
     scores = []  # to store global results
 
@@ -111,5 +111,5 @@ def plot_optimization_box(results: pd.DataFrame, title: str, h_var: str='_h', fo
 
     plot = ggplot(res_melt, aes(h_var, 'value', fill = var_name)) +\
     geom_boxplot(notch=False) +\
-    labs(x='Threshold', y='Score', title=title)
+    labs(x='Classifier', y='Score', title=title)
     plot.draw(True)
