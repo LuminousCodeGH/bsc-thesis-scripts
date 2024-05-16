@@ -63,14 +63,11 @@ class Preprocessor:
         model = PCA(n_components=_n_comps).fit(X)
         self._pca_screeplot(model)
         
-    def remove_cluster(self, adata: ad.AnnData, cluster: str, inplace: bool=True) -> None | ad.AnnData:
+    def remove_cluster(self, adata: ad.AnnData, cluster: str) -> ad.AnnData:
         if self.n_components is None:
             raise AttributeError('The number of PCs to use is unset!')
         if self.leiden_clusters is None:
             raise AttributeError('No leiden clustering has been performed yet. Run Preprocessor.analyze_umap first!')
-        
-        if not inplace:
-            adata = adata.copy()
 
         adata = adata[self.leiden_clusters != cluster, :]
         self.show_umap(adata, self.n_components, ', Post-removal')
