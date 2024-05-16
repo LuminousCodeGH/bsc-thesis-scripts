@@ -92,6 +92,8 @@ def generate_heatmap(adata: ad.AnnData, layer: str) -> None:
         _df = pd.DataFrame(adata.layers[layer], columns=col_labels)
     heatmap = sns.heatmap(_df)
     heatmap.set_title(f'Heatmap for {layer}')
+    heatmap.figure.set_size_inches((20,8))
+    heatmap.set(xticks=np.arange(len(col_labels))+0.5, xticklabels=col_labels.to_list())
     plt.show()
 
 
@@ -106,8 +108,9 @@ def generate_normalization_summary(adata: ad.AnnData, layer: str) -> None:
     sns.set_style('whitegrid')
     density = sns.kdeplot(_df, bw_method=0.5, legend=False, ax=ax1)
     density.set_title(f'Density Plot for {layer}')
+    density.tick_params(labelbottom=False)
     boxplot = sns.boxplot(_df.T, orient='v', notch=True, ax=ax2)
-    boxplot.tick_params('x', rotation=90, width=5)
+    boxplot.tick_params(labelbottom=False)
     boxplot.set_title(f'Box Plot for {layer}')
     heatmap = sns.heatmap(_df,  ax=ax3)
     heatmap.set_title(f'Heatmap for {layer}')
