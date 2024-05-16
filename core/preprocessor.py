@@ -1,0 +1,109 @@
+import anndata as ad
+import scanpy as sc
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from collections.abc import Callable, Collection
+from typing import Literal
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+
+class Preprocessor:
+    def __init__(self, steps: Collection[Literal['umap']]) -> None:
+        self.steps = steps
+        self._leiden_clusters: pd.Series = None
+        self.n_components: int = None
+
+    @property
+    def leiden_clusters(self) -> pd.Series:
+        return self._leiden_clusters
+
+    @leiden_clusters.setter
+    def leiden_clusters(self, value) -> None:
+        raise AttributeError('Attribute is set automatically when running \'Preprocessor.analyze_umap\'!')
+    
+    def set_n_components(self, value: int) -> None:
+        self.n_components = value
+
+    def analyze_umap(self, adata: ad.AnnData, return_adata: bool=False) -> None:
+        if self.n_components is None:
+            raise AttributeError('The number of PCs to use is unset!')
+        adata = self.show_umap(adata, None, return_adata=True)
+
+        self._leiden_clusters = adata.obs['leiden']
+
+        if return_adata:
+            return adata
+        
+    def show_umap(self, adata: ad.AnnData, n_components: int=None, title_addition: str='', return_adata: bool=False) -> None | ad.AnnData:
+        if n_components is None:
+            n_components = self.n_components
+
+        adata = adata.copy()
+        adata.layers['umap_norm'] = adata.X.copy()
+        sc.pp.normalize_total(adata, target_sum=10000, layer='umap_norm')
+        sc.pp.log1p(adata.layers['umap_norm'])
+        sc.pp.pca(adata, n_components, layer='umap_norm')
+        sc.pp.neighbors(adata)
+        sc.tl.umap(adata)
+        sc.tl.leiden(adata, flavor="igraph", n_iterations=4)
+        ax = sc.pl.umap(adata, color="leiden", show=False)
+        ax.set_title(f'UMAP of Leiden Clustered PCs (n={n_components}){title_addition}')
+        ax.figure.show()
+
+        if return_adata:
+            return adata
+        
+    def show_pca(self, adata: ad.AnnData) -> None:
+        adata = adata.copy()
+        _n_comps: int = adata.var_names.size
+        sc.pp.normalize_total(adata, target_sum=10000)
+        X = StandardScaler().fit_transform(adata.X)
+        model = PCA(n_components=_n_comps).fit(X)
+        self._pca_screeplot(model)
+        
+    def remove_cluster(self, adata: ad.AnnData, cluster: str, inplace: bool=True) -> None | ad.AnnData:
+        if self.n_components is None:
+            raise AttributeError('The number of PCs to use is unset!')
+        if self.leiden_clusters is None:
+            raise AttributeError('No leiden clustering has been performed yet. Run Preprocessor.analyze_umap first!')
+        
+        if not inplace:
+            adata = adata.copy()
+
+        adata = adata[self.leiden_clusters != cluster, :]
+        self.show_umap(adata, self.n_components, ', Post-removal')
+        return adata
+
+    @staticmethod
+    def _pca_screeplot(pca_model: PCA, figsize: tuple[int, int]=(8,8), title_add: str='') -> None:
+        """
+        Shows a barplot of the fraction of variance explained by each PC.
+        """
+        var_cor, var_contrib = Preprocessor._pca_summary(pca_model)
+        dim = np.arange(var_cor.shape[1])
+        var = pca_model.explained_variance_ratio_
+        cumvar = np.cumsum(pca_model.explained_variance_ratio_)
+
+        plt.figure(figsize=figsize)
+        plt.rc('axes', axisbelow=True)
+        plt.grid(axis = 'y', linewidth = 0.5)
+        plt.bar(dim, 100*var).set_label('Individual Var.')
+        plt.scatter(dim, cumvar*100, c='red').set_label('Cumulative Var.')
+        plt.xticks(dim, dim+1, rotation=90)
+        plt.xlabel('Component')
+        plt.ylabel('Explained Variance (%)')
+        plt.title(f'Variance Plot {title_add}')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    @staticmethod
+    def _pca_summary(pca_model: PCA) -> tuple[np.ndarray, np.ndarray]:
+        sdev = np.sqrt(pca_model.explained_variance_)
+        var_cor = np.apply_along_axis(lambda c: c*sdev, 0, pca_model.components_)
+        var_cos2 = var_cor**2
+        comp_cos2 = np.sum(var_cos2, 1)
+        var_contrib = np.apply_along_axis(lambda c: c/comp_cos2, 0, var_cos2)
+        return var_cor, var_contrib
