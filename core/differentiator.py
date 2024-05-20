@@ -32,6 +32,12 @@ class Differentiator:
             raise ValueError(f'Alpha must be between zero and one, not {value:.3f}!')
         self._alpha = value
 
+    @property
+    def abundance_df(self) -> pd.DataFrame | None:
+        if not hasattr(self, '_abundance_df'):
+            raise AttributeError('Abundance dataframe unset! Run Differentiator.differentiate first!')
+        return self._abundance_df
+
     def differentiate(self, adata: ad.AnnData, inplace: bool=True) -> None:
         if not inplace:
             adata = adata.copy()
@@ -46,6 +52,12 @@ class Differentiator:
         corr_results = self.correction(results.pvalue, self.alpha)
         adata.var['significant'] = corr_results[0]
         adata.var['corr_pvalue'] = corr_results[1]
+
+        if not hasattr(self, '_abundance_df'):
+            self._abundance_df = pd.DataFrame(data=adata.var[['significant', 'corr_pvalue']], index=adata.var_names)
+        else:
+            self.abundance_df['significant'] = adata.var['significant'].copy()
+            self.abundance_df['corr_pvalue'] = adata.var['corr_pvalue'].copy()
 
         if not inplace:
             return adata
@@ -63,7 +75,12 @@ class Differentiator:
         for i in range(adata.X.shape[1]):
             fold_changes[i] = np.log2(np.mean(X[:, i]) / np.mean(Y[:, i]))
 
-        _volc_df = adata.var.assign(log2fc = fold_changes, log10p = np.log10(adata.var[pvalue_column])*-1).reset_index()
+        adata.var['log2fc'] = fold_changes
+        adata.var['log10p'] = np.log10(adata.var[pvalue_column].to_numpy())*-1
+        _volc_df = adata.var.reset_index()
+
+        self.abundance_df['log2fc'] = adata.var['log2fc'].copy()
+        self.abundance_df['log10p'] = adata.var['log10p'].copy()
 
         from plotnine import ggplot, aes, geom_point, geom_hline, geom_text, geom_vline, xlab, ylab, xlim, ggtitle
 
@@ -76,5 +93,6 @@ class Differentiator:
             xlim(-1.5, 1.5) +\
             ggtitle('Abundance Volcano Plot')
         volcano_plot.draw(True)
+        del _volc_df
 
 
