@@ -10,6 +10,8 @@ from sklearn.preprocessing import StandardScaler
 
 
 class Preprocessor:
+    COGDX_MAP = {1: 'H', 2: 'M', 3: 'M', 4: 'AD', 5: 'AD', 6: 'O'}
+
     def __init__(self, steps: Collection[Literal['umap']]) -> None:
         self.steps = steps
         self._leiden_clusters: pd.Series = None
@@ -72,6 +74,27 @@ class Preprocessor:
         adata = adata[self.leiden_clusters != cluster, :]
         self.show_umap(adata, self.n_components, ', Post-removal')
         return adata
+    
+    def categorize(self, adata: ad.AnnData, column: str, map: dict[str | int, str], inplace=True) -> None | ad.AnnData:
+        if not inplace:
+            adata = adata.copy()
+        assert all(u_entry in map.keys() for u_entry in adata.obs[column].unique()), \
+            f'The map is missing entries! \nmap: {map.keys()}\nentries: {adata.obs[column].unique().tolist()}'
+        
+        adata.obs[f'{column}_cat'] = adata.obs.apply(lambda row: map[row[column]], axis=1).astype('category')
+        if not inplace:
+            return adata
+        
+    def regress_out(self, adata: ad.AnnData, column: str, inplace=True) -> None | ad.AnnData:
+        if not inplace:
+            adata = adata.copy()
+        adata = adata[adata.obs[column].astype('float32').notna()]
+        assert not any(np.isnan(adata.obs[column].to_numpy())), 'Column {} still contains NaNs!'.format(column)
+        assert not adata.obs[column].hasnans, 'Column {} still contains NaNs!'.format(column)
+        sc.pp.regress_out(adata, column)
+        
+        if not inplace:
+            return adata
 
     @staticmethod
     def _pca_screeplot(pca_model: PCA, figsize: tuple[int, int]=(8,8), title_add: str='') -> None:
