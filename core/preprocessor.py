@@ -12,8 +12,7 @@ from sklearn.preprocessing import StandardScaler
 class Preprocessor:
     COGDX_MAP = {1: 'H', 2: 'M', 3: 'M', 4: 'AD', 5: 'AD', 6: 'O'}
 
-    def __init__(self, steps: Collection[Literal['umap']]) -> None:
-        self.steps = steps
+    def __init__(self) -> None:
         self._leiden_clusters: pd.Series = None
         self.n_components: int = None
 
