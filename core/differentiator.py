@@ -15,7 +15,9 @@ class Differentiator:
                  metric_column: str,
                  categories: tuple[str | float, str | float],
                  alpha: float=0.05) -> None:
-        self.normalizer: Normalizer = Normalizer(normalization, None)
+        if not isinstance(normalization, str):
+            raise ValueError('Differentiator only supports one normalization at a time!')
+        self.normalizer: Normalizer = Normalizer([normalization], None)
         self.test = test
         self.correction = correction
         self.metric_column = metric_column
