@@ -32,13 +32,13 @@ class Normalizer:
 
     def normalize_all(self, adata: ad.AnnData, inplace: bool=True) -> None | ad.AnnData:
         if not inplace:
-            adata = adata.copy()
+            _res = adata.copy()
 
         for idx in range(len(self.normalizations)):
-            self._normalize(adata, idx, inplace)
+            _res = self._normalize(adata, idx, inplace)
 
         if not inplace:
-            return adata
+            return _res
 
     def _generate_name_from_normalization(self, index: int | str) -> str:
         _name: str
