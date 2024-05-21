@@ -74,13 +74,15 @@ class Preprocessor:
         self.show_umap(adata, self.n_components, ', Post-removal')
         return adata
     
-    def categorize(self, adata: ad.AnnData, column: str, map: dict[str | int, str], inplace=True) -> None | ad.AnnData:
+    def categorize(self, adata: ad.AnnData, column: str, map: dict[str | int, str], add_catcodes: bool=False, inplace=True) -> None | ad.AnnData:
         if not inplace:
             adata = adata.copy()
         assert all(u_entry in map.keys() for u_entry in adata.obs[column].unique()), \
             f'The map is missing entries! \nmap: {map.keys()}\nentries: {adata.obs[column].unique().tolist()}'
         
         adata.obs[f'{column}_cat'] = adata.obs.apply(lambda row: map[row[column]], axis=1).astype('category')
+        if add_catcodes:
+            adata.obs[f'{column}_catcode'] = adata.obs[f'{column}_cat'].cat.codes
         if not inplace:
             return adata
         
