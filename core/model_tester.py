@@ -3,7 +3,7 @@ import numpy as np
 import anndata as ad
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import balanced_accuracy_score, f1_score
+from sklearn.metrics import balanced_accuracy_score, f1_score, roc_auc_score
 from sklearn.base import BaseEstimator
 from core.normalizer import Normalizer
 from collections.abc import Iterable
@@ -67,7 +67,8 @@ class ModelTester:
 
             fold_scores = {'_fold': split}
             scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
-                           'f1': f1_score(y_test, pred, average='macro')}
+                           'f1': f1_score(y_test, pred, average='macro'),
+                           'auc': roc_auc_score(y_test, pred)}
             fold_scores.update(scores_dict)
             split += 1
             if self.verbose:
@@ -76,12 +77,19 @@ class ModelTester:
 
         return pd.DataFrame(cv_results)
     
-    def _get_X_and_y(self, adata: ad.AnnData) -> tuple[np.ndarray, np.ndarray]:
-        if self.normalizer is not None:
-            if len(self.normalizer.layer_names) > 1:
-                print('WARNING: Normalizer has more than one normalization. Choosing the first!')
-            _layer = self.normalizer.layer_names[0]
-            adata = self.normalizer.normalize_all(adata, False)
+    def _get_X_and_y(self, adata: ad.AnnData, idx: int | None=None, ignore_normalization: bool=False) -> tuple[np.ndarray, np.ndarray]:
+        if self.normalizer is not None and not ignore_normalization:
+            if idx is None:
+                print('WARNING: Normalizer is set but index is unset. Choosing the first normalization!')
+                _layer = self.normalizer.layer_names[0]
+                if _layer not in adata.layers.keys():
+                    adata = self.normalizer.normalize_all(adata, False)
+            elif idx is not None:
+                if self.verbose:
+                    print(f'Normalizing index {idx}... (={self.normalizer.normalizations[idx]})')
+                _layer = self.normalizer.layer_names[idx]
+                if _layer not in adata.layers.keys():
+                    adata = self.normalizer._normalize(adata, idx, False)
             X: np.ndarray = adata.layers[_layer][adata.obs[self.metric_column].isin(self.categories)]
         else:
             X: np.ndarray = adata.X[adata.obs[self.metric_column].isin(self.categories)]
@@ -94,8 +102,9 @@ class ModelTester:
     def test_model(self, 
                    adata: ad.AnnData, 
                    model: BaseEstimator, 
-                   name: str) -> pd.DataFrame:
-        X, y = self._get_X_and_y(adata)
+                   name: str,
+                   is_baseline: bool=False) -> pd.DataFrame:
+        X, y = self._get_X_and_y(adata, ignore_normalization=is_baseline)
         assert X.shape[0] == y.shape[0], 'X and y shapes do not match!'
         model.random_state = self.random_state
         _res = self._kfold_cv(model, X, y).assign(_h=name)
@@ -127,8 +136,29 @@ class ModelTester:
     def test_baseline(self, 
                       adata: ad.AnnData, 
                       name: str) -> pd.DataFrame:
-        _res = self.test_model(adata, self.baseline_model, name)
+        _res = self.test_model(adata, self.baseline_model, name, True)
         self._results = _res
+        return _res
+    
+    def test_normalizations(self,
+                            adata: ad.AnnData,
+                            names: Iterable[str]=None) -> pd.DataFrame:
+        if names is not None:
+            assert len(names) == len(self.normalizer.normalizations), 'The length of the names and the number of different normalizations do not match!'
+
+        model = self.baseline_model
+        _results: list[pd.DataFrame] = []
+        for i in range(len(self.normalizer.layer_names)):
+            name = self.normalizer.layer_names[i]
+            if names is not None:
+                name = names[i]
+            X, y = self._get_X_and_y(adata, i)
+            model.random_state = self.random_state
+            _results.append(self._kfold_cv(model, X, y).assign(_h=name))
+
+        _res = pd.concat(_results, axis=0)
+        if hasattr(self, '_results'):
+            self._results = pd.concat([self._results, _res], axis=0)
         return _res
     
     def plot_results(self, title: str) -> None:
