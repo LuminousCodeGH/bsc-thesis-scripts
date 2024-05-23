@@ -96,6 +96,36 @@ class Preprocessor:
         
         if not inplace:
             return adata
+        
+    def combine_ct(self, 
+                   adata: ad.AnnData, 
+                   cell_types: Collection[str], 
+                   combine_leftovers: Literal['all'] | Collection[str] | None, 
+                   leftover_name: str='Other') -> ad.AnnData:
+        result = adata.copy()
+        _comb_left: int = 1 if combine_leftovers != None else 0
+        columns = []
+        X_new = []
+        for i in range(len(cell_types) + _comb_left):
+            if i == len(cell_types) and combine_leftovers is not None:
+                # Handle the 'other' cell types
+                columns.append(leftover_name)
+                if combine_leftovers == 'all':
+                    X_new.append(result.X[:, ~result.var.index.isin(cell_types)].tolist())
+                else:
+                    X_new(result.X[:, result.var.index.isin(combine_leftovers)].tolist())
+                break
+            columns.append(cell_types[i])
+            X_new.append(result.X[:, result.var.index.str.startswith(columns[i])].tolist())
+
+        # Sum all cell types together for each major group
+        for j in range(len(X_new)):
+            for i in range(len(X_new[j])):
+                X_new[j][i] = sum(count for count in list(X_new[j][i]))
+        X_new = np.array(X_new)
+        print(f'{X_new.shape=}')
+        result = ad.AnnData(X_new.T, result.obs, pd.DataFrame(index=columns))
+        return result
 
     @staticmethod
     def _pca_screeplot(pca_model: PCA, figsize: tuple[int, int]=(8,8), title_add: str='') -> None:
