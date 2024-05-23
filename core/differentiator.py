@@ -50,6 +50,8 @@ class Differentiator:
         Y: np.ndarray = _data.layers[_norm_layer][_data.obs[column] == self.categories[1]]
         del _data
 
+        assert not np.isnan(X).any(), 'NaN found in X!'
+        assert not np.isnan(Y).any(), 'NaN found in Y!'
         results = self.test(X, Y, 'two-sided')
         corr_results = self.correction(results.pvalue, self.alpha)
         adata.var['significant'] = corr_results[0]
