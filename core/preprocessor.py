@@ -3,15 +3,12 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from collections.abc import Callable, Collection
-from typing import Literal
+
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
 class Preprocessor:
-    COGDX_MAP = {1: 'H', 2: 'M', 3: 'M', 4: 'AD', 5: 'AD', 6: 'O'}
-
     def __init__(self) -> None:
         self._leiden_clusters: pd.Series = None
         self.n_components: int = None
@@ -73,18 +70,6 @@ class Preprocessor:
         adata = adata[self.leiden_clusters != cluster, :]
         self.show_umap(adata, self.n_components, ', Post-removal')
         return adata
-    
-    def categorize(self, adata: ad.AnnData, column: str, map: dict[str | int, str], add_catcodes: bool=False, inplace=True) -> None | ad.AnnData:
-        if not inplace:
-            adata = adata.copy()
-        assert all(u_entry in map.keys() for u_entry in adata.obs[column].unique()), \
-            f'The map is missing entries! \nmap: {map.keys()}\nentries: {adata.obs[column].unique().tolist()}'
-        
-        adata.obs[f'{column}_cat'] = adata.obs.apply(lambda row: map[row[column]], axis=1).astype('category')
-        if add_catcodes:
-            adata.obs[f'{column}_catcode'] = adata.obs[f'{column}_cat'].cat.codes
-        if not inplace:
-            return adata
         
     def regress_out(self, adata: ad.AnnData, column: str, inplace=True) -> None | ad.AnnData:
         if not inplace:
@@ -96,36 +81,6 @@ class Preprocessor:
         
         if not inplace:
             return adata
-        
-    def combine_ct(self, 
-                   adata: ad.AnnData, 
-                   cell_types: Collection[str], 
-                   combine_leftovers: Literal['all'] | Collection[str] | None, 
-                   leftover_name: str='Other') -> ad.AnnData:
-        result = adata.copy()
-        _comb_left: int = 1 if combine_leftovers != None else 0
-        columns = []
-        X_new = []
-        for i in range(len(cell_types) + _comb_left):
-            if i == len(cell_types) and combine_leftovers is not None:
-                # Handle the 'other' cell types
-                columns.append(leftover_name)
-                if combine_leftovers == 'all':
-                    X_new.append(result.X[:, ~result.var.index.isin(cell_types)].tolist())
-                else:
-                    X_new(result.X[:, result.var.index.isin(combine_leftovers)].tolist())
-                break
-            columns.append(cell_types[i])
-            X_new.append(result.X[:, result.var.index.str.startswith(columns[i])].tolist())
-
-        # Sum all cell types together for each major group
-        for j in range(len(X_new)):
-            for i in range(len(X_new[j])):
-                X_new[j][i] = sum(count for count in list(X_new[j][i]))
-        X_new = np.array(X_new)
-        print(f'{X_new.shape=}')
-        result = ad.AnnData(X_new.T, result.obs, pd.DataFrame(index=columns))
-        return result
 
     @staticmethod
     def _pca_screeplot(pca_model: PCA, figsize: tuple[int, int]=(8,8), title_add: str='') -> None:
