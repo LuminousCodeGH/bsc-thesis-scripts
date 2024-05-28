@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import anndata as ad
 
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import balanced_accuracy_score, f1_score, roc_auc_score
+from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.metrics import balanced_accuracy_score, f1_score, roc_auc_score, make_scorer
 from sklearn.base import BaseEstimator
 from core.normalizer import Normalizer
-from collections.abc import Iterable
-from plotnine import ggplot, aes, geom_boxplot, labs
+from collections.abc import Iterable, Callable
+from typing import Any, Literal
+from plotnine import ggplot, aes, geom_boxplot, labs, geom_point, geom_errorbar, theme, element_text, stat_summary
 
 
 class ModelTester:
@@ -26,6 +27,8 @@ class ModelTester:
         self.k = k
         self.random_state = random_state
         self.verbose = verbose
+        self.best_normalization: int = None
+        self.gridsearch_results: dict[str, pd.DataFrame] = {}
 
     @property
     def results(self) -> pd.DataFrame:
@@ -77,8 +80,10 @@ class ModelTester:
 
         return pd.DataFrame(cv_results)
     
-    def _get_X_and_y(self, adata: ad.AnnData, idx: int | None=None, ignore_normalization: bool=False) -> tuple[np.ndarray, np.ndarray]:
+    def _get_X_and_y(self, adata: ad.AnnData, idx: int | Literal['best'] | None=None, ignore_normalization: bool=False) -> tuple[np.ndarray, np.ndarray]:
         if self.normalizer is not None and not ignore_normalization:
+            if idx == 'best':
+                idx = self.best_normalization
             if idx is None:
                 print('WARNING: Normalizer is set but index is unset. Choosing the first normalization!')
                 _layer = self.normalizer.layer_names[0]
@@ -148,6 +153,8 @@ class ModelTester:
 
         model = self.baseline_model
         _results: list[pd.DataFrame] = []
+        _best_normalization_score = 0
+        _best_normalization: str = None
         for i in range(len(self.normalizer.layer_names)):
             name = self.normalizer.layer_names[i]
             if names is not None:
@@ -155,17 +162,72 @@ class ModelTester:
             X, y = self._get_X_and_y(adata, i)
             model.random_state = self.random_state
             _results.append(self._kfold_cv(model, X, y).assign(_h=name))
+            _acc = np.mean(_results[-1]['acc'])
+            _best_normalization = i if _acc > _best_normalization_score else _best_normalization
+        self.best_normalization = i
 
         _res = pd.concat(_results, axis=0)
         if hasattr(self, '_results'):
             self._results = pd.concat([self._results, _res], axis=0)
         return _res
     
-    def plot_results(self, title: str) -> None:
+    def plot_results(self, title: str, average_stat: Literal['mean', 'median']='median') -> None:
         res_melt = self.results.melt(id_vars=['_h', '_fold'], var_name='metric')
 
         plot = ggplot(res_melt, aes('_h', 'value', fill='metric')) +\
-        geom_boxplot(notch=False) +\
-        labs(x='Classifier', y='Score', title=title)
+            geom_boxplot(notch=False, mapping=aes(middle=f'np.{average_stat}(value)')) +\
+            labs(x='Classifier', y='Score', title=title)
         plot.draw(True)
     
+    def exhaustive_gridsearch(self, 
+                              adata: ad.AnnData, 
+                              model: BaseEstimator,
+                              model_name: str, 
+                              grid_parameters: dict[str: Any],
+                              scoring: str | Callable[[np.ndarray, np.ndarray], float] = make_scorer(balanced_accuracy_score),
+                              normalization_idx: int | Literal['best'] | None=None,
+                              file_name: str=None) -> None:
+        model.random_state = self.random_state
+        X, y = self._get_X_and_y(adata, normalization_idx)
+        print('Fitting GridSearchCV...', end=' ')
+        grid_cv = GridSearchCV(model, 
+                               param_grid=grid_parameters, 
+                               cv=self.k, 
+                               scoring=scoring, 
+                               n_jobs=-1,
+                               return_train_score=True,
+                               refit=False).fit(X, y)
+        print('done!')
+
+        _df: pd.DataFrame = pd.DataFrame(grid_cv.cv_results_)
+        _df['median_test_score'] = _df.filter([f'split{i}_test_score' for i in range(self.k)]).median(axis=1)
+        _df['median_train_score'] = _df.filter([f'split{i}_train_score' for i in range(self.k)]).median(axis=1)
+
+        _df = _df.iloc(axis=1)[(_df.columns.str.endswith('test_score') | 
+                                _df.columns.str.endswith('train_score') | 
+                                _df.columns.str.startswith('param')) & 
+                                (~_df.columns.str.startswith('split')) &
+                                (~_df.columns.str.startswith('rank'))]
+
+        self.gridsearch_results[model_name] = _df
+
+        if file_name is not None:
+            _df.to_csv(file_name)
+
+    def import_gridsearch_results(self, file_name: str, model_name: str) -> None:
+        self.gridsearch_results[model_name] = pd.read_csv(file_name)
+
+    def plot_overfit(self, name_in_gs_results: str, param_on_x: str, average_stat: Literal['mean', 'median'], title: str):
+        test_df = self.gridsearch_results[name_in_gs_results].melt(id_vars=[param_on_x, 'std_test_score'], value_vars=[f'{average_stat}_test_score'])
+        train_df = self.gridsearch_results[name_in_gs_results].melt(id_vars=[param_on_x, 'std_train_score'], value_vars=[f'{average_stat}_train_score'])
+
+        plot = ggplot() +\
+            geom_point(data=test_df, mapping=aes(x=param_on_x, y='value', color='variable')) +\
+            geom_point(data=train_df, mapping=aes(x=param_on_x, y='value', color='variable')) +\
+            labs(x=' '.join(param_on_x.split('_')[1:]).capitalize(), y='Score', title=title) +\
+            theme(axis_text_x=element_text(rotation=45))
+        if average_stat == 'mean':
+            plot = plot +\
+                geom_errorbar(data=test_df, mapping=aes(x=param_on_x, ymin='value-std_test_score', ymax='value+std_test_score')) +\
+                geom_errorbar(data=train_df, mapping=aes(x=param_on_x, ymin='value-std_train_score', ymax='value+std_train_score'))
+        plot.draw(True)
