@@ -82,6 +82,16 @@ class Preprocessor:
         if not inplace:
             return adata
 
+    def keep_features(self, adata: ad.AnnData, columns: list[str]) -> ad.AnnData:
+        new_adata = adata.copy()
+        new_adata = new_adata[:, new_adata.var.index.isin(columns)]
+        return new_adata
+    
+    def remove_features(self, adata: ad.AnnData, columns: list[str]) -> ad.AnnData:
+        new_adata = adata.copy()
+        new_adata = new_adata[:, ~new_adata.var.index.isin(columns)]
+        return new_adata
+
     @staticmethod
     def _pca_screeplot(pca_model: PCA, figsize: tuple[int, int]=(8,8), title_add: str='') -> None:
         """
