@@ -186,6 +186,7 @@ class ModelTester:
                               grid_parameters: dict[str: Any],
                               scoring: str | Callable[[np.ndarray, np.ndarray], float] = make_scorer(balanced_accuracy_score),
                               normalization_idx: int | Literal['best'] | None=None,
+                              save_type: Literal['full', 'summ'] = None,
                               file_name: str=None) -> None:
         model.random_state = self.random_state
         X, y = self._get_X_and_y(adata, normalization_idx)
@@ -203,11 +204,14 @@ class ModelTester:
         _df['median_test_score'] = _df.filter([f'split{i}_test_score' for i in range(self.k)]).median(axis=1)
         _df['median_train_score'] = _df.filter([f'split{i}_train_score' for i in range(self.k)]).median(axis=1)
 
-        _df = _df.iloc(axis=1)[(_df.columns.str.endswith('test_score') | 
-                                _df.columns.str.endswith('train_score') | 
-                                _df.columns.str.startswith('param')) & 
-                                (~_df.columns.str.startswith('split')) &
-                                (~_df.columns.str.startswith('rank'))]
+        if save_type == 'summ':
+            _df = _df.iloc(axis=1)[(_df.columns.str.endswith('test_score') | 
+                                    _df.columns.str.endswith('train_score') | 
+                                    _df.columns.str.startswith('param')) & 
+                                    (~_df.columns.str.startswith('split')) &
+                                    (~_df.columns.str.startswith('rank'))]
+        elif save_type == 'full':
+            pass
 
         self.gridsearch_results[model_name] = _df
 
