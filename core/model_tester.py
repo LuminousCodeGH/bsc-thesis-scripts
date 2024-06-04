@@ -69,9 +69,13 @@ class ModelTester:
                     pred[i] = min(self.categories, key=lambda x: abs(x-pred[i]))  # In case of a regression, set the value to the closest category
 
             fold_scores = {'_fold': split}
-            scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
-                           'f1': f1_score(y_test, pred, average='macro'),
-                           'auc': roc_auc_score(y_test, pred)}
+            if len(self.categories) == 2:
+                scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
+                            'f1': f1_score(y_test, pred, average='macro'),
+                            'auc': roc_auc_score(y_test, pred)}
+            elif len(self.categories) > 2:
+                scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
+                            'f1': f1_score(y_test, pred, average='macro')}
             fold_scores.update(scores_dict)
             split += 1
             if self.verbose:
