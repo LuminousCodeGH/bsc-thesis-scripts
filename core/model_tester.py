@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import anndata as ad
+import os.path
 
 from sklearn.model_selection import StratifiedKFold, GridSearchCV
 from sklearn.metrics import balanced_accuracy_score, f1_score, roc_auc_score, make_scorer
@@ -30,11 +31,27 @@ class ModelTester:
         self.best_normalization: int = None
         self.gridsearch_results: dict[str, pd.DataFrame] = {}
 
+
+
     @property
     def results(self) -> pd.DataFrame:
         if not hasattr(self, '_results'):
             raise AttributeError('No results are available. Test models first!')
         return self._results
+    
+    @property
+    def gridsearch_results_summary(self) -> dict[str, pd.DataFrame]:
+        if not hasattr(self, '_gridsearch_results_summary'):
+            _gs_sum: dict[str, pd.DataFrame] = {}
+            for name, df in self.gridsearch_results.items():
+                _df = df.iloc(axis=1)[(df.columns.str.endswith('test_score') | 
+                                df.columns.str.endswith('train_score') | 
+                                df.columns.str.startswith('param')) & 
+                                (~df.columns.str.startswith('split')) &
+                                (~df.columns.str.startswith('rank'))]
+                _gs_sum[name] = _df
+            self._gridsearch_results_summary = _gs_sum
+        return self._gridsearch_results_summary
 
     def _kfold_cv(self,
                   model: BaseEstimator, 
@@ -191,7 +208,15 @@ class ModelTester:
                               scoring: str | Callable[[np.ndarray, np.ndarray], float] = make_scorer(balanced_accuracy_score),
                               normalization_idx: int | Literal['best'] | None=None,
                               save_type: Literal['full', 'summ'] = None,
-                              file_name: str=None) -> None:
+                              file_name: str=None,
+                              override_file: bool=False) -> None:
+        if file_name is not None:
+            if not override_file and os.path.isfile(file_name):
+                print('Retrieving previous results...', end=' ')
+                self.import_gridsearch_results(file_name, model_name)
+                print('done! Stopping here...')
+                return
+        
         model.random_state = self.random_state
         X, y = self._get_X_and_y(adata, normalization_idx)
         print('Fitting GridSearchCV...', end=' ')
@@ -223,7 +248,7 @@ class ModelTester:
             _df.to_csv(file_name)
 
     def import_gridsearch_results(self, file_name: str, model_name: str) -> None:
-        self.gridsearch_results[model_name] = pd.read_csv(file_name)
+        self.gridsearch_results[model_name] = pd.read_csv(file_name, index_col=0)
 
     def plot_overfit(self, name_in_gs_results: str, param_on_x: str, average_stat: Literal['mean', 'median'], title: str):
         test_df = self.gridsearch_results[name_in_gs_results].melt(id_vars=[param_on_x, 'std_test_score'], value_vars=[f'{average_stat}_test_score'])
