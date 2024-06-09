@@ -3,7 +3,7 @@ import numpy as np
 import anndata as ad
 import os.path
 
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
 from sklearn.metrics import balanced_accuracy_score, f1_score, roc_auc_score, make_scorer
 from sklearn.base import BaseEstimator
 from core.normalizer import Normalizer
@@ -30,8 +30,6 @@ class ModelTester:
         self.verbose = verbose
         self.best_normalization: int = None
         self.gridsearch_results: dict[str, pd.DataFrame] = {}
-
-
 
     @property
     def results(self) -> pd.DataFrame:
@@ -264,3 +262,19 @@ class ModelTester:
                 geom_errorbar(data=test_df, mapping=aes(x=param_on_x, ymin='value-std_test_score', ymax='value+std_test_score')) +\
                 geom_errorbar(data=train_df, mapping=aes(x=param_on_x, ymin='value-std_train_score', ymax='value+std_train_score'))
         plot.draw(True)
+
+    @staticmethod
+    def split_test_data(adata: ad.AnnData, test_samples: float | int, stratify_on: str, random_state: int=None) -> tuple[ad.AnnData, ad.AnnData]:
+        '''Splits the adata according to a percentage if test_samples is a float, or according to an absolute number of samples. 
+        Returns train_adata, test_adata in this order'''
+        total_samples: int = adata.shape[0]
+        if isinstance(test_samples, int):
+            print(f'{test_samples} samples = {(test_samples / total_samples) * 100:.3f}%')
+            test_samples = round(test_samples / total_samples, 3)
+        train_idx, test_idx = train_test_split(range(adata.shape[0]), test_size=test_samples, random_state=random_state, stratify=adata.obs[stratify_on])
+        train_adata = adata[train_idx, :]
+        test_adata = adata[test_idx, :]
+        print(f'{train_adata.shape=}')
+        print(f'{test_adata.shape=}')
+
+        return train_adata, test_adata
