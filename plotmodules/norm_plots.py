@@ -43,16 +43,21 @@ def generate_boxplot(adata: ad.AnnData, layer: str) -> None:
     del(_df)
 
 
-def generate_densityplot(adata: ad.AnnData, layer: str, show_legend:bool=False) -> None:
+def generate_densityplot(adata: ad.AnnData, layer: str, show_legend:bool=False, override_title: str=None, **kwargs) -> None:
     col_labels = adata.var_names
 
     if layer == 'X':
         _df = pd.DataFrame(adata.X, columns=col_labels)
     else:
         _df = pd.DataFrame(adata.layers[layer], columns=col_labels)
+    if override_title is None:
+        title = f'Density Plot for {layer}'
+    else:
+        title = override_title
     sns.set_style('whitegrid')
     density = sns.kdeplot(_df, bw_method=0.5, legend=show_legend)
-    density.set_title(f'Density Plot for {layer}')
+    density.set(**kwargs)
+    density.set_title(title)
     plt.show()
     del(_df)
 
