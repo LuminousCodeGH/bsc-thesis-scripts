@@ -9,7 +9,7 @@ from sklearn.base import BaseEstimator
 from core.normalizer import Normalizer
 from collections.abc import Iterable, Callable
 from typing import Any, Literal
-from plotnine import ggplot, aes, geom_boxplot, labs, geom_point, geom_errorbar, theme, element_text, stat_summary
+from plotnine import ggplot, aes, geom_boxplot, labs, geom_point, geom_errorbar, theme, element_text, geom_bar, position_dodge, stat_summary
 
 
 class ModelTester:
@@ -30,6 +30,7 @@ class ModelTester:
         self.verbose = verbose
         self.best_normalization: int = None
         self.gridsearch_results: dict[str, pd.DataFrame] = {}
+        self.gridsearch_models: dict[str: BaseEstimator] = {}
 
     @property
     def results(self) -> pd.DataFrame:
@@ -123,6 +124,32 @@ class ModelTester:
             print(f'Getting X and y: X={X.shape}, y={y.shape}')
         return X, y
     
+    def _plot_results(self, title: str, average_stat: Literal['mean', 'median'], plot_type: Literal['box', 'bar'], final_test: bool) -> None:
+        if not final_test:
+            res_melt = self.results[['_h', '_fold', 'f1', 'auc', 'acc']].melt(id_vars=['_h', '_fold'], var_name='metric')
+        else:
+            if not hasattr(self, 'final_results'):
+                raise AttributeError('The final test has not been performed yet! (Final test results not found)')
+            res_melt = self.final_results[['_h', '_fold', 'f1', 'auc', 'acc']].melt(id_vars=['_h', '_fold'], var_name='metric')
+
+        if plot_type == 'box':
+            plot = ggplot(res_melt, aes('_h', 'value', fill='metric')) +\
+                geom_boxplot(notch=False, mapping=aes(middle=f'np.{average_stat}(value)')) +\
+                labs(x='Classifier', y='Score', title=title)
+            plot.draw(True)
+
+        elif plot_type == 'bar':
+            res_melt = res_melt.groupby(['_h', 'metric'], as_index=False).aggregate(
+                stdev = ('value', 'std'), 
+                mean = ('value', 'mean'), 
+                median = ('value', 'median'))
+            plot = ggplot(res_melt, aes('_h', 'median', fill='metric')) +\
+                geom_bar(stat='identity', position='dodge') +\
+                geom_errorbar(aes(ymin='mean-stdev', ymax='mean+stdev', group='metric'), position=position_dodge(0.9), width=.02) +\
+                labs(x='Classifier', y='Score', title=title) +\
+                stat_summary(mapping=aes('_h', 'mean'), fun_data='mean_cl_boot', position=position_dodge(0.9))
+            plot.draw(True)
+    
     def test_model(self, 
                    adata: ad.AnnData, 
                    model: BaseEstimator, 
@@ -189,14 +216,12 @@ class ModelTester:
         if hasattr(self, '_results'):
             self._results = pd.concat([self._results, _res], axis=0)
         return _res
-    
-    def plot_results(self, title: str, average_stat: Literal['mean', 'median']='median') -> None:
-        res_melt = self.results.melt(id_vars=['_h', '_fold'], var_name='metric')
+        
+    def plot_results(self, title: str, average_stat: Literal['mean', 'median']='median', plot_type: Literal['box', 'bar'] = 'bar') -> None:
+        self._plot_results(title, average_stat, plot_type, False)
 
-        plot = ggplot(res_melt, aes('_h', 'value', fill='metric')) +\
-            geom_boxplot(notch=False, mapping=aes(middle=f'np.{average_stat}(value)')) +\
-            labs(x='Classifier', y='Score', title=title)
-        plot.draw(True)
+    def plot_final_results(self, title: str, average_stat: Literal['mean', 'median']='median', plot_type: Literal['box', 'bar'] = 'bar') -> None:
+        self._plot_results(title, average_stat, plot_type, True)
     
     def exhaustive_gridsearch(self, 
                               adata: ad.AnnData, 
@@ -208,6 +233,8 @@ class ModelTester:
                               save_type: Literal['full', 'summ'] = None,
                               file_name: str=None,
                               override_file: bool=False) -> None:
+        self.gridsearch_models[model_name] = model
+
         if file_name is not None:
             if not override_file and os.path.isfile(file_name):
                 print('Retrieving previous results...', end=' ')
@@ -247,6 +274,51 @@ class ModelTester:
 
     def import_gridsearch_results(self, file_name: str, model_name: str) -> None:
         self.gridsearch_results[model_name] = pd.read_csv(file_name, index_col=0)
+
+    def run_final_test(self, train_adata: ad.AnnData, test_adata: ad.AnnData, random_states: Iterable[int], normalization: str) -> pd.DataFrame:
+        best_models: dict[str, BaseEstimator] = {}
+
+        # For every gridsearched model get the best parameters and apply them
+        from json import loads
+        for model_name, df in self.gridsearch_results.items():
+            base_model: BaseEstimator = self.gridsearch_models[model_name]
+            _best_params_str = df.sort_values(['median_test_score', 'mean_test_score'], ascending=[False, False]).params[0].replace("'", '"')
+            best_params = loads(_best_params_str)
+            best_model = base_model.set_params(**best_params)
+            best_models[model_name] = best_model
+        
+        X_train = train_adata.X if normalization is None else train_adata.layers[f'norm_{normalization}']
+        y_train = train_adata.obs[self.metric_column][train_adata.obs[self.metric_column].isin(self.categories)].to_numpy()
+
+        X_test = test_adata.X if normalization is None else test_adata.layers[f'norm_{normalization}']
+        y_test = test_adata.obs[self.metric_column][test_adata.obs[self.metric_column].isin(self.categories)].to_numpy()
+
+        results: list[pd.DataFrame] = []
+
+        # Do a k-fold CV type thing only randomizing the models instead
+        _iter_scores: list[dict] = []
+        _iter_score: dict = {}
+        for model_name, model in best_models.items():
+            _iter = 0
+            for random_state in random_states:
+                model.random_state = random_state
+                m = model.fit(X_train, y_train)
+                pred = m.predict(X_test)
+
+                _iter_score = {'_fold': _iter, 'model': m}
+                if len(self.categories) == 2:
+                    scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
+                                'f1': f1_score(y_test, pred, average='macro'),
+                                'auc': roc_auc_score(y_test, pred)}
+                elif len(self.categories) > 2:
+                    scores_dict = {'acc' : balanced_accuracy_score(y_test, pred),
+                                'f1': f1_score(y_test, pred, average='macro')}
+                _iter_score.update(scores_dict)
+                _iter += 1
+                _iter_scores.append(_iter_score)
+            results.append(pd.DataFrame(_iter_scores).assign(_h=model_name))
+        self.final_results = pd.concat(results, axis=0)
+        return self.final_results
 
     def plot_overfit(self, name_in_gs_results: str, param_on_x: str, average_stat: Literal['mean', 'median'], title: str):
         test_df = self.gridsearch_results[name_in_gs_results].melt(id_vars=[param_on_x, 'std_test_score'], value_vars=[f'{average_stat}_test_score'])
